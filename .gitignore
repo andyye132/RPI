@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv*/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.jax_cache*/
+.cache/
+
+# Experiment outputs and bulk data (results/ holds the archived evidence, distributed separately)
+results/
+results_*/
+scratch/
+netcomm_figs/
+*.npz
+*.h5
+*.parquet
+*.pickle
+*.pkl
+*.csv
+*.log
+*.out
+*.zip
+
+# Manuscript sources and build artifacts (kept private)
+*.tex
+*.bib
+*.cls
+*.pdf
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+*.toc
+
+# Cluster wrappers (machine-local paths)
+*.sh
+*.sbatch
+slurm/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/
+.ipynb_checkpoints/
+.env
+.envrc

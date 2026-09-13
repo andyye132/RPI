@@ -1,0 +1,128 @@
+# AETHER v3 committed defaults. One flat file, no layering.
+# Override on the CLI with --set key.subkey=value.
+
+shapes:
+  n_robots: 8            # N (sweep 4, 16)
+  grid: 40               # field voxels per side (1.25 m at extent 50)
+  window: 25             # sliding-window poses W
+  max_targets: 16        # true-target slots (R2/R4 use 8)
+  max_det: 32            # detections per robot per scan incl clutter tail
+  max_comp: 64           # GM-PHD components J
+  max_labels: 16         # extracted track slots
+
+world:
+  extent: 50.0           # arena side (m)
+  kind: urban            # urban | terrain | forest | open
+  urban_blocks: [8, 14]  # count range
+  urban_loss_db: [10.0, 20.0]   # per-crossing through-loss range
+  terrain_diffraction_db: 8.0
+  forest_scatterers: 60
+  forest_loss_db: [2.0, 4.0]
+  trajectory: transect   # transect | patrol | convoy | waypoint
+
+time:
+  dt: 0.1                # slot (s)
+  steps: 3000            # horizon (slots)
+
+robots:
+  speed: 1.5             # m/s (sweep 0.5, 3)
+  sigma_trans: 0.02      # odometry m/axis/slot
+  sigma_rot_deg: 0.2     # odometry deg/slot
+
+relative:
+  range: 8.0             # m
+  sigma_trans: 0.05      # m
+  sigma_rot_deg: 0.5
+  outlier_rate: 0.10
+  outlier_mag: 10.0      # x noise
+  dcs_phi: 1.0
+
+targets:
+  regime: R1             # R1 single static | R2 multi static | R3 single moving | R4 multi moving
+  sigma_a: 0.3           # NCV accel noise m/s^2
+  speed_clamp: 2.0
+  survival: 0.995
+
+detection:
+  p0: 0.9
+  r_max: 12.0
+  los_gate_db: 6.0       # soft LoS gate midpoint
+  los_gate_scale_db: 1.5
+  sigma_r: 0.10          # m
+  sigma_beta_deg: 1.0
+  clutter_rate: 5.0      # Poisson per scan
+  decouple_occlusion: false   # CH5 toggle
+
+fusion:
+  rule: detections       # detections | ci_tracks | kla (SOTA fusion-rule rows)
+
+channel:
+  f_c_hz: 2.4e+9
+  p0_dbm: -40.0          # 1 m reference RX power
+  gamma: 2.2
+  nakagami_m: {urban: 1.0, forest: 2.0, terrain: 3.0, open: 5.0,
+                constant: 1.0, stratified: 1.0, radial: 1.0}
+  sigma_f_db: 2.0
+  decode_dbm: -88.0
+  sinr_db: 6.0
+  conflict_radius: 12.0
+  rssi_quant_db: 1.0     # (sweep 3, 6)
+  budget_frac: 0.5       # B = budget_frac * N
+  block_extra_db: 15.0   # GE bad-state additional loss
+  ge_p_bad_los: 0.02     # blockage entry prob when LoS clear
+  ge_p_bad_nlos: 0.30    # blockage entry prob when shadowed
+  ge_persist: 0.85       # bad-state self-transition
+
+field:
+  prior_sigma_db: 6.0    # per-voxel Gaussian prior
+  tv_delta_db: 3.0       # Huber-TV knee
+  tv_lambda: 1.0         # (sweep 0.3, 3)
+
+estimator:
+  gn_iters: 4
+  lm_damping: 1.0e-3     # adaptive x10 on divergence
+  gauge_prior: 1.0e-6
+  arch: A_J              # A0 | A_BL | A_HY | A_J
+  oracle_field: false
+
+bilevel:
+  inner: ge              # ge | bernoulli | gudmundson
+
+gmphd:
+  backend: gmphd         # gmphd | lmb (SOTA back-end row)
+  max_births: 8          # birth rows reserved in the PHD update
+  birth_weight: 0.05
+  prune: 1.0e-4
+  merge_mahal: 4.0
+  extract: 0.5
+  cap_per_label: 4
+
+scheduler:
+  policy: rr             # rr | delivery | logdet
+  lambda_div: 0.0        # CS-divergence term (M2b seam)
+
+logging:
+  out_dir: null          # null -> coopsim.paths.SCRATCH (env AETHER_SCRATCH)
+  field_snap_every: 100
+  belief_subsample: 10
+
+power:
+  enable: false          # transmit-power control (Sec. VIII); off = published fixed-power radio
+  mode: info             # info | uniform (energy-matched control, same total power)
+  p_target: 0.5          # target decode probability; 0.5 maximizes the decode-bit Fisher term
+  floor_dbm: -90.0       # numerical floor. The CAP is channel.p0_dbm: control may only LOWER
+
+guidance:
+  enable: false          # gauge-aware link scheduling (Sec. VII); off = published behaviour
+  decay: 0.98            # geometric forgetting on the accumulated gauge Gram
+  eps: 1.0e-9            # ridge inside the rank-one logdet increment
+  mode: gauge            # gauge | random | traj | trajrand | dual
+  rand_head: false       # X9 E2 control: random headings under the SAME corridor
+  excite_window: 25      # X9: trailing-window length matched to the alpha endpoint
+  corridor_m: 0.0        # X9: lateral deviation budget from the nominal survey (m)
+  lam_route: 0.0         # dual control: weight on the EXPLOIT term (route
+                         # betweenness x believed delivery). 0 = pure probing,
+                         # large = pure exploitation. Sweep traces the frontier.
+  dtheta_deg: 12.0       # max heading perturbation per step around the nominal mission
+  lam_rel: 2.0           # prices expected delivery: a relative measurement arrives only if the packet does
+  lam_age: 0.02          # fairness, restores the coverage round-robin gives for free
