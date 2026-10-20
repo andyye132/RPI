@@ -14,12 +14,16 @@ from scipy import stats
 import seaborn as sns
 
 NAMES = ('experiment_a_compact', 'interface_errors', 'translation_directions')
-METHODS = {'Joint': '^', 'RPI': 'o', 'Per-step map': 'D', 'Scalar': 's'}
+METHODS = {'Joint': '^', 'RPI': 'o', 'Per-step map': 'D', 'Scalar': 's',
+           'RPI (fixed map)': 'D', 'RPI (uncertain map)': 'o'}
 PALETTE = sns.color_palette('colorblind')
-COLORS = {'Joint': PALETTE[0], 'RPI': PALETTE[2], 'Per-step map': PALETTE[1], 'Scalar': '#707070'}
+COLORS = {'Joint': PALETTE[0], 'RPI': PALETTE[2], 'Per-step map': PALETTE[1], 'Scalar': '#707070',
+          'RPI (fixed map)': PALETTE[1], 'RPI (uncertain map)': PALETTE[2]}
 MAPS = ('constant', 'x_only', 'two_dimensional')
 A_METHODS = ('joint', 'corrected', 'naive_slotwise')
-B_METHODS = ('scalar', 'message', 'joint')
+B_METHODS = ('scalar', 'message', 'joint', 'rpi_uncertain')
+B_LABELS = {'scalar': 'Scalar', 'message': 'RPI (fixed map)', 'joint': 'Joint',
+            'rpi_uncertain': 'RPI (uncertain map)'}
 LABELS = {'joint': 'Joint', 'corrected': 'RPI', 'naive_slotwise': 'Per-step map',
           'scalar': 'Scalar', 'message': 'RPI'}
 SCENARIOS = ('correct', 'registration', 'attenuation', 'combined')
@@ -244,29 +248,39 @@ def plot_a(a, out, noise):
 
 
 def plot_b(b, out):
-    fig, axes = canvas(3, 7.16, 3.35)
-    centers = [11., 8., 5., 2.]
+    fig, axes = canvas(3, 7.16, 3.65)
+    centers = [15., 11., 7., 3.]
     titles = ('(a) Common error', '(b) Relative error', '(c) Uncertainty')
     labels = ('RMSE (m)', 'RMSE (m)', 'Centroid uncertainty (m)')
     for pi, (ax, metric, title, xlabel) in enumerate(zip(axes, B_METRICS, titles, labels)):
         for i, key in enumerate(B_METHODS):
             for j, sc in enumerate(SCENARIOS):
-                add_interval(ax, centers[j]+(.8-i*.8), b[(sc, key, metric)], LABELS[key],
+                add_interval(ax, centers[j]+(1.35-i*.9), b[(sc, key, metric)], B_LABELS[key],
                              digits=4 if pi == 1 else 3)
         ax.set_title(title, pad=7, fontsize=9.8)
-        ax.set(xlabel=xlabel, ylim=(.3, 12.5), yticks=[])
-        for y in [9.5, 6.5, 3.5]:
+        ax.set(xlabel=xlabel, ylim=(.8, 16.8), yticks=[])
+        for y in [13., 9., 5.]:
             ax.axhline(y, color='#dddddd', linewidth=.6, zorder=0)
-    axes[0].set(xlim=(0, 1.5), xticks=[0, .5, 1., 1.5],
+    common_upper = max(1.5, np.ceil((max(b[(sc, key, B_METRICS[0])]['ci95'][1]
+                                       for sc in SCENARIOS for key in B_METHODS)+.05)/.5)*.5)
+    axes[0].set(xlim=(0, common_upper), xticks=np.arange(0, common_upper+.1, .5),
                 yticks=centers, yticklabels=['Correct\nmap', 'Shift\n+1 m', 'Atten.\n+20%', 'Both\nerrors'])
     axes[0].xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
-    assert all(.057 < b[(sc, key, B_METRICS[1])]['ci95'][0] and
-               b[(sc, key, B_METRICS[1])]['ci95'][1] < .065
-               for sc in SCENARIOS for key in B_METHODS)
-    axes[1].set_xlim(.057, .067); axes[1].set_xticks([.058, .062, .066]); axes[1].xaxis.set_major_formatter(FormatStrFormatter('%.3f'))
+    relative_low = min(.057, min(b[(sc, key, B_METRICS[1])]['ci95'][0]
+                                 for sc in SCENARIOS for key in B_METHODS)-.001)
+    relative_high = max(.067, max(b[(sc, key, B_METRICS[1])]['ci95'][1]
+                                  for sc in SCENARIOS for key in B_METHODS)+.002)
+    axes[1].set_xlim(relative_low, relative_high)
+    axes[1].set_xticks(np.linspace(relative_low+.001, relative_high-.001, 3))
+    axes[1].xaxis.set_major_formatter(FormatStrFormatter('%.3f'))
     axes[1].set_xlabel('RMSE (m; zoomed)')
-    axes[2].set_xlim(0, .8); axes[2].set_xticks([0, .4, .8]); axes[2].xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
-    legend(fig, ['Scalar', 'RPI', 'Joint'], joint_label='Joint (fixed map)')
+    uncertainty_upper = max(.8, np.ceil(max(b[(sc, key, B_METRICS[2])]['ci95'][1]
+                                            for sc in SCENARIOS for key in B_METHODS)*1.15/.2)*.2)
+    axes[2].set_xlim(0, uncertainty_upper)
+    axes[2].set_xticks(np.linspace(0, uncertainty_upper, 3))
+    axes[2].xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+    legend(fig, ['Scalar', 'RPI (fixed map)', 'Joint', 'RPI (uncertain map)'],
+           joint_label='Joint (fixed map)')
     finish(fig, axes, out, NAMES[1])
 
 
@@ -308,13 +322,14 @@ def main():
     parser.add_argument('--output', type=Path, default=Path('figures'))
     parser.add_argument('--data-root', type=Path, default=Path.cwd())
     parser.add_argument('--noise-sweep', type=Path)
+    parser.add_argument('--interface-data', type=Path)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     results = args.data_root/'results'
-    noise_path = args.noise_sweep or results/'gaussian_noise_sweep/experiment'
-    a = load_a(results/'experiment_a')
-    b = load_b(results/'experiment_b')
-    c = load_c(results/'experiment_c')
+    noise_path = args.noise_sweep or results/'gaussian_noise_sweep_20261011/run_7300322/experiment'
+    a = load_a(results/'acc2027_revision/experiment_a')
+    b = load_b(args.interface_data or results/'uncertain_map_20261020/experiment')
+    c = load_c(results/'acc2027_directional_20260921/experiment_c')
     noise = load_noise(noise_path)
     set_style()
     plot_a(a, args.output, noise)
