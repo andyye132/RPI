@@ -328,7 +328,7 @@ def main():
     results = args.data_root/'results'
     noise_path = args.noise_sweep or results/'gaussian_noise_sweep_20261011/run_7300322/experiment'
     a = load_a(results/'acc2027_revision/experiment_a')
-    b = load_b(args.interface_data or results/'uncertain_map_20261020/experiment')
+    b = load_b(args.interface_data or results/'field_uncertainty_20261021/experiment')
     c = load_c(results/'acc2027_directional_20260921/experiment_c')
     noise = load_noise(noise_path)
     set_style()
