@@ -20,6 +20,8 @@ PALETTE = sns.color_palette('colorblind')
 COLORS = {'Joint': PALETTE[0], 'RPI': PALETTE[2], 'Per-step map': PALETTE[1], 'Scalar': '#707070',
           'RPI (fixed map)': PALETTE[1], 'RPI (uncertain map)': PALETTE[2]}
 MAPS = ('constant', 'x_only', 'two_dimensional')
+C_METHODS = ('scalar', 'rpi', 'rpi_uncertain')
+C_LABELS = ('Scalar', 'RPI (fixed map)', 'RPI (uncertain map)')
 A_METHODS = ('joint', 'corrected', 'naive_slotwise')
 B_METHODS = ('scalar', 'message', 'joint', 'rpi_uncertain')
 B_LABELS = {'scalar': 'Scalar', 'message': 'RPI (fixed map)', 'joint': 'Joint',
@@ -96,11 +98,11 @@ def load_b(path):
 def load_c(path):
     seeds = json.loads((path/'summary.json').read_text())['protocol']['seeds']
     values = {(condition, method, axis): [] for condition in MAPS
-              for method in ('scalar', 'rpi') for axis in ('x', 'y')}
+              for method in C_METHODS for axis in ('x', 'y')}
     for seed in seeds:
         with np.load(path/f'seed_{seed}.npz', allow_pickle=False) as raw:
             for condition in MAPS:
-                for method in ('scalar', 'rpi'):
+                for method in C_METHODS:
                     common = (raw[f'{condition}_{method}_estimate']-raw['truth']).mean(axis=1)
                     for i, axis in enumerate(('x', 'y')):
                         value = float(np.sqrt(np.mean(common[2*len(common)//3:, i]**2)))
@@ -285,19 +287,19 @@ def plot_b(b, out):
 
 
 def plot_c(c, out):
-    fig, axes = canvas(2, 7.16, 2.35)
+    fig, axes = canvas(2, 7.16, 2.80)
     centers = [7.6, 4.6, 1.6]
     for pi, (ax, axis) in enumerate(zip(axes, ('x', 'y'))):
-        for i, key in enumerate(('scalar', 'rpi')):
+        for i, key in enumerate(C_METHODS):
             for j, condition in enumerate(MAPS):
-                add_interval(ax, centers[j]+(.55-i*1.1), c[(condition, key, axis)], ('Scalar', 'RPI')[i])
+                add_interval(ax, centers[j]+(.85-i*.85), c[(condition, key, axis)], C_LABELS[i])
         ax.set_title(f'({"ab"[pi]}) Common {axis}-position', pad=7, fontsize=9.8)
         ax.set(xlabel='RMSE (m)', xlim=(0, .6), ylim=(.1, 9.),
                xticks=[0, .2, .4, .6], yticks=[])
         ax.xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         for y in [6.1, 3.1]: ax.axhline(y, color='#dddddd', linewidth=.6, zorder=0)
     axes[0].set(yticks=centers, yticklabels=['Constant', 'x-varying', '2D varied'])
-    legend(fig, ['Scalar', 'RPI'])
+    legend(fig, C_LABELS)
     finish(fig, axes, out, NAMES[2])
 
 
@@ -323,13 +325,14 @@ def main():
     parser.add_argument('--data-root', type=Path, default=Path.cwd())
     parser.add_argument('--noise-sweep', type=Path)
     parser.add_argument('--interface-data', type=Path)
+    parser.add_argument('--directional-data', type=Path)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     results = args.data_root/'results'
     noise_path = args.noise_sweep or results/'gaussian_noise_sweep_20261011/run_7300322/experiment'
     a = load_a(results/'acc2027_revision/experiment_a')
     b = load_b(args.interface_data or results/'field_uncertainty_20261021/experiment')
-    c = load_c(results/'acc2027_directional_20260921/experiment_c')
+    c = load_c(args.directional_data or results/'directional_uncertainty_20261022/experiment')
     noise = load_noise(noise_path)
     set_style()
     plot_a(a, args.output, noise)
